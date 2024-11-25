@@ -1,0 +1,85 @@
+// puppyregform
+
+<script>
+methods: {
+  async addPuppy() {
+    try {
+      const response = await new FetchAPI().post('/api/puppies', this.puppy)
+      if (response.success) {
+        this.$emit('fetchData', response.data)
+        this.puppy = {} // Reset the form
+      }
+    } catch (error) {
+      alert('Failed to add puppy.')
+    }
+  }
+}
+</script>
+
+
+// puppylist
+
+async deletePuppy(puppy) {
+  try {
+    const response = await new FetchAPI().delete(`/api/puppies/${puppy.id}`)
+    if (response.success) {
+      this.puppies = this.puppies.filter(p => p.id !== puppy.id)
+      alert('Puppy deleted successfully!')
+    }
+  } catch (error) {
+    alert('Failed to delete puppy.')
+  }
+}
+
+
+// get puppies
+
+from src.setup_db_example.schemas.s_puppies import PuppySchema
+
+@puppy_db_router.route("/api/puppies", methods=["GET"])
+def get_puppies():
+    query = PuppyDb.query.all()
+    puppies_data = PuppySchema(many=True).dump(query)
+    return {"success": True, "data": puppies_data}, 200
+
+
+/////////////
+
+@puppy_db_router.route("/api/adopt", methods=["POST"])
+def adopt_puppy():
+    data = request.json  # Get JSON payload
+    schema = AdoptionSchema()
+
+    # Validate input data
+    try:
+        adoption_data = schema.load(data)
+    except ValidationError as err:
+        return jsonify({"success": False, "errors": err.messages}), 400
+
+    # Check if the puppy exists
+    puppy = PuppyDb.query.get(adoption_data["puppy_id"])
+    if not puppy:
+        return jsonify({"success": False, "message": "Puppy not found"}), 404
+
+    # Delete the puppy from the table
+    db_session.delete(puppy)
+
+    # Optionally log the adoption in a separate table
+    new_adoption = AdoptionDb(
+        owner_name=adoption_data["owner_name"],
+        owner_email=adoption_data["owner_email"],
+        owner_phone=adoption_data["owner_phone"],
+        puppy_id=adoption_data["puppy_id"]
+    )
+    db_session.add(new_adoption)
+    db_session.commit()
+
+    return jsonify({"success": True, "message": "Adoption successful!"}), 201
+
+// a_puppies
+
+ @puppy_db_router.route("/api/puppies", methods=["GET"])
+def get_available_puppies():
+    query = PuppyDb.query.all()  # All puppies left in the database
+    puppies_data = PuppySchema(many=True).dump(query)
+    return {"success": True, "data": puppies_data}, 200

@@ -1,0 +1,242 @@
+// app.vue or the main parent
+
+<template>
+  <div class="container mt-5">
+    <h1>Office Supplies Tracker</h1>
+    <employee-form @refresh="fetchEmployees" />
+    <supply-form @refresh="fetchSupplies" />
+    <supply-list :supplies="supplies" :employees="employees" @refresh="fetchSupplies" />
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+import EmployeeForm from './components/EmployeeForm.vue';
+import SupplyForm from './components/SupplyForm.vue';
+import SupplyList from './components/SupplyList.vue';
+
+export default {
+  components: { EmployeeForm, SupplyForm, SupplyList },
+  data() {
+    return {
+      employees: [],
+      supplies: [],
+    };
+  },
+  methods: {
+    async fetchEmployees() {
+      const res = await axios.get('http://127.0.0.1:5000/employees');
+      this.employees = res.data;
+    },
+    async fetchSupplies() {
+      const res = await axios.get('http://127.0.0.1:5000/supplies');
+      this.supplies = res.data;
+    },
+  },
+  mounted() {
+    this.fetchEmployees();
+    this.fetchSupplies();
+  },
+};
+</script>
+
+
+// employeeform
+
+<template>
+  <b-form @submit.prevent="addEmployee">
+    <b-row>
+      <b-col>
+        <b-form-group label="Name">
+          <b-form-input v-model="employee.name" required />
+        </b-form-group>
+      </b-col>
+      <b-col>
+        <b-form-group label="Department">
+          <b-form-input v-model="employee.department" required />
+        </b-form-group>
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>
+        <b-form-group label="Position">
+          <b-form-input v-model="employee.position" required />
+        </b-form-group>
+      </b-col>
+      <b-col>
+        <b-form-group label="Email">
+          <b-form-input type="email" v-model="employee.email" required />
+        </b-form-group>
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>
+        <b-form-group label="Phone">
+          <b-form-input type="tel" v-model="employee.phone" required />
+        </b-form-group>
+      </b-col>
+    </b-row>
+    <b-button type="submit" variant="primary">Add Employee</b-button>
+  </b-form>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+  data() {
+    return {
+      employee: {
+        name: '',
+        department: '',
+        position: '',
+        email: '',
+        phone: '',
+      },
+    };
+  },
+  methods: {
+    async addEmployee() {
+      await axios.post('http://127.0.0.1:5000/employees', this.employee);
+      this.$emit('refresh');
+      this.employee = { name: '', department: '', position: '', email: '', phone: '' };
+    },
+  },
+};
+</script>
+
+
+// supply form
+
+<template>
+  <b-form @submit.prevent="addOrUpdateSupply">
+    <b-row>
+      <b-col>
+        <b-form-group label="Item Name">
+          <b-form-input v-model="supply.item_name" required />
+        </b-form-group>
+      </b-col>
+      <b-col>
+        <b-form-group label="Category">
+          <b-form-input v-model="supply.category" required />
+        </b-form-group>
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>
+        <b-form-group label="Quantity">
+          <b-form-input type="number" v-model="supply.quantity" required />
+        </b-form-group>
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>
+        <b-form-group label="Status">
+          <b-form-select v-model="supply.status" :options="statusOptions" required />
+        </b-form-group>
+      </b-col>
+    </b-row>
+    <b-button type="submit" variant="primary">{{ isEdit ? 'Update' : 'Add' }} Supply</b-button>
+  </b-form>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+  props: {
+    supplyToEdit: Object,
+  },
+  data() {
+    return {
+      isEdit: false,
+      supply: {
+        id: null,
+        item_name: '',
+        category: '',
+        quantity: 0,
+        status: 'Available',
+      },
+      statusOptions: [
+        { value: 'Available', text: 'Available' },
+        { value: 'In Use', text: 'In Use' },
+        { value: 'Damaged', text: 'Damaged' },
+      ],
+    };
+  },
+  methods: {
+    async addOrUpdateSupply() {
+      if (this.isEdit) {
+        await axios.put('http://127.0.0.1:5000/supplies', this.supply);
+      } else {
+        await axios.post('http://127.0.0.1:5000/supplies', this.supply);
+      }
+      this.$emit('refresh');
+      this.resetForm();
+    },
+    resetForm() {
+      this.supply = {
+        id: null,
+        item_name: '',
+        category: '',
+        quantity: 0,
+        status: 'Available',
+      };
+      this.isEdit = false;
+    },
+  },
+  watch: {
+    supplyToEdit(newSupply) {
+      if (newSupply) {
+        this.supply = { ...newSupply };
+        this.isEdit = true;
+      }
+    },
+  },
+};
+</script>
+
+// supply list
+
+<template>
+  <div>
+    <h3>Supply List</h3>
+    <b-table :items="supplies" :fields="fields" striped hover>
+      <template #cell(actions)="row">
+        <b-button variant="warning" @click="editSupply(row.item)">Edit</b-button>
+        <b-button variant="danger" @click="deleteSupply(row.item.id)">Delete</b-button>
+      </template>
+    </b-table>
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+  props: {
+    supplies: Array,
+    employees: Array,
+  },
+  data() {
+    return {
+      fields: [
+        { key: 'item_name', label: 'Item Name' },
+        { key: 'category', label: 'Category' },
+        { key: 'quantity', label: 'Quantity' },
+        { key: 'status', label: 'Status' },
+        { key: 'actions', label: 'Actions' },
+      ],
+    };
+  },
+  methods: {
+    editSupply(supply) {
+      this.$emit('edit-supply', supply);
+    },
+    async deleteSupply(id) {
+      await axios.delete(`http://127.0.0.1:5000/supplies/${id}`);
+      this.$emit('refresh');
+    },
+  },
+};
+</script>

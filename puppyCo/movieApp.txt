@@ -1,0 +1,148 @@
+// app
+
+<template>
+  <div id="app">
+    <h1>Movie Watchlist</h1>
+    <MovieForm @add-movie="addMovie" />
+    <MovieFilter @filter-movies="filterMovies" />
+    <MovieList :movies="movies" @delete-movie="deleteMovie" @toggle-watch="toggleWatch" />
+  </div>
+</template>
+
+<script>
+import MovieForm from './components/MovieForm.vue'
+import MovieFilter from './components/MovieFilter.vue'
+import MovieList from './components/MovieList.vue'
+import { ref } from 'vue'
+
+export default {
+  components: { MovieForm, MovieFilter, MovieList },
+  setup() {
+    const movies = ref([])
+
+    const fetchMovies = async () => {
+      const response = await fetch('http://localhost:5000/api/movies')
+      movies.value = await response.json()
+    }
+
+    const addMovie = async (movie) => {
+      await fetch('http://localhost:5000/api/movies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(movie)
+      })
+      fetchMovies()
+    }
+
+    const deleteMovie = async (id) => {
+      await fetch(`http://localhost:5000/api/movies/${id}`, { method: 'DELETE' })
+      fetchMovies()
+    }
+
+    const toggleWatch = async (id, watched) => {
+      await fetch(`http://localhost:5000/api/movies/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watched })
+      })
+      fetchMovies()
+    }
+
+    const filterMovies = (status) => {
+      if (status === 'all') {
+        fetchMovies()
+      } else {
+        const filtered = movies.value.filter(movie => movie.watched === (status === 'watched'))
+        movies.value = filtered
+      }
+    }
+
+    fetchMovies()
+
+    return { movies, addMovie, deleteMovie, toggleWatch, filterMovies }
+  }
+}
+</script>
+
+
+// movieform
+
+<template>
+  <b-form @submit.prevent="handleSubmit">
+    <b-form-group label="Movie Title">
+      <b-form-input v-model="movie.title" required></b-form-input>
+    </b-form-group>
+    <b-form-group label="Watched">
+      <b-form-checkbox v-model="movie.watched">Watched</b-form-checkbox>
+    </b-form-group>
+    <b-button type="submit" variant="primary">Add Movie</b-button>
+  </b-form>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      movie: {
+        title: '',
+        watched: false
+      }
+    }
+  },
+  methods: {
+    handleSubmit() {
+      this.$emit('add-movie', { ...this.movie })
+      this.movie.title = ''
+      this.movie.watched = false
+    }
+  }
+}
+</script>
+
+// movie filter
+
+<template>
+  <b-button-group>
+    <b-button @click="filterMovies('all')">All</b-button>
+    <b-button @click="filterMovies('watched')">Watched</b-button>
+    <b-button @click="filterMovies('unwatched')">Unwatched</b-button>
+  </b-button-group>
+</template>
+
+<script>
+export default {
+  methods: {
+    filterMovies(status) {
+      this.$emit('filter-movies', status)
+    }
+  }
+}
+</script>
+
+
+// movie list
+
+<template>
+  <b-list-group>
+    <b-list-group-item v-for="movie in movies" :key="movie.id">
+      <b-checkbox v-model="movie.watched" @change="toggleWatch(movie.id, movie.watched)">
+        {{ movie.title }}
+      </b-checkbox>
+      <b-button variant="danger" @click="deleteMovie(movie.id)">Delete</b-button>
+    </b-list-group-item>
+  </b-list-group>
+</template>
+
+<script>
+export default {
+  props: ['movies'],
+  methods: {
+    deleteMovie(id) {
+      this.$emit('delete-movie', id)
+    },
+    toggleWatch(id, watched) {
+      this.$emit('toggle-watch', id, watched)
+    }
+  }
+}
+</script>

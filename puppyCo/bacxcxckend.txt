@@ -1,0 +1,122 @@
+// bacxcxckend
+
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///office_supplies.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# Models
+class Employee(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    department = db.Column(db.String(50), nullable=False)
+    position = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    phone = db.Column(db.String(15), nullable=False)
+
+class Supply(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    item_name = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    assigned_to = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="Available")
+    last_updated = db.Column(db.DateTime, nullable=False)
+
+db.create_all()
+
+# Routes
+@app.route('/employees', methods=['GET', 'POST'])
+def manage_employees():
+    if request.method == 'POST':
+        data = request.json
+        new_employee = Employee(
+            name=data['name'],
+            department=data['department'],
+            position=data['position'],
+            email=data['email'],
+            phone=data['phone']
+        )
+        db.session.add(new_employee)
+        db.session.commit()
+        return jsonify({'message': 'Employee added successfully!'}), 201
+
+    employees = Employee.query.all()
+    return jsonify([{
+        'id': emp.id,
+        'name': emp.name,
+        'department': emp.department,
+        'position': emp.position,
+        'email': emp.email,
+        'phone': emp.phone
+    } for emp in employees])
+
+@app.route('/supplies', methods=['GET', 'POST', 'PUT'])
+def manage_supplies():
+    if request.method == 'POST':
+        data = request.json
+        new_supply = Supply(
+            item_name=data['item_name'],
+            category=data['category'],
+            quantity=data['quantity'],
+            status="Available"
+        )
+        db.session.add(new_supply)
+        db.session.commit()
+        return jsonify({'message': 'Supply added successfully!'}), 201
+
+    if request.method == 'PUT':
+        data = request.json
+        supply = Supply.query.get(data['id'])
+        supply.assigned_to = data.get('assigned_to')
+        supply.status = data.get('status', supply.status)
+        db.session.commit()
+        return jsonify({'message': 'Supply updated successfully!'})
+
+    supplies = Supply.query.all()
+    return jsonify([{
+        'id': sup.id,
+        'item_name': sup.item_name,
+        'category': sup.category,
+        'quantity': sup.quantity,
+        'assigned_to': sup.assigned_to,
+        'status': sup.status
+    } for sup in supplies])
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+/// 
+
+@app.route('/supplies', methods=['PUT'])
+def update_supply():
+    data = request.json
+    supply = Supply.query.get(data['id'])
+    if supply:
+        supply.item_name = data['item_name']
+        supply.category = data['category']
+        supply.quantity = data['quantity']
+        supply.status = data['status']
+        db.session.commit()
+        return jsonify({'message': 'Supply updated successfully!'})
+    return jsonify({'message': 'Supply not found!'}), 404
+
+
+///
+
+@app.route('/supplies/<int:id>', methods=['DELETE'])
+def delete_supply(id):
+    supply = Supply.query.get(id)
+    if supply:
+        db.session.delete(supply)
+        db.session.commit()
+        return jsonify({'message': 'Supply deleted successfully!'})
+    return jsonify({'message': 'Supply not found!'}), 404

@@ -1,0 +1,22 @@
+Employees
+
+employee_id (Primary Key)
+name
+department
+position
+email
+phone
+Supplies
+
+supply_id (Primary Key)
+item_name
+category (e.g., Electronics)
+quantity
+assigned_to (Foreign Key to employee_id)
+status (e.g., Available, In Use, Damaged)
+last_updated (Date/Time of last update)
+
+
+Assigning an item to an employee: Update the assigned_to field in the Supplies table with the corresponding employee_id.
+Returning an item: Set the assigned_to field to NULL and update the status to "Available."
+Viewing all items assigned to an employee: Query the Supplies table for records where assigned_to matches the employee's employee_id.
