@@ -1,0 +1,78 @@
+from flask import jsonify
+from sqlalchemy.orm import joinedload
+
+@puppy_db_router.route("/api/puppy/<int:puppy_id>/status", methods=["GET"])
+def check_puppy_status(puppy_id):
+    # Check if the puppy exists in the adoptions table
+    adoption = AdoptionDb.query.filter_by(puppy_id=puppy_id).first()
+
+    if adoption:
+        # If found in the adoption table, it is adopted
+        return jsonify({"success": True, "is_adopted": True, "owner": adoption.owner_name}), 200
+    else:
+        # If not found, the puppy is available
+        return jsonify({"success": True, "is_adopted": False}), 200
+
+
+///
+@puppy_db_router.route("/api/puppies", methods=["GET"])
+def get_available_puppies():
+    # Use a subquery or filter to exclude adopted puppies
+    adopted_puppies = db_session.query(AdoptionDb.puppy_id).subquery()
+    available_puppies = PuppyDb.query.filter(~PuppyDb.id.in_(adopted_puppies)).all()
+
+    # Serialize the data
+    puppies_data = PuppySchema(many=True).dump(available_puppies)
+    return {"success": True, "data": puppies_data}, 200
+
+
+class PuppyDb(Base):
+    __tablename__ = 'puppies'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    birthdate = Column(Date, nullable=False)
+    is_adopted = Column(Boolean, default=False)
+
+
+@puppy_db_router.route("/api/adopt", methods=["POST"])
+def adopt_puppy():
+    data = request.json
+
+    # Validate input data
+    schema = AdoptionSchema()
+    try:
+        adoption_data = schema.load(data)
+    except ValidationError as err:
+        return jsonify({"success": False, "errors": err.messages}), 400
+
+    # Check if the puppy exists and is not already adopted
+    puppy = PuppyDb.query.get(adoption_data["puppy_id"])
+    if not puppy:
+        return jsonify({"success": False, "message": "Puppy not found"}), 404
+    if puppy.is_adopted:
+        return jsonify({"success": False, "message": "Puppy is already adopted"}), 400
+
+    # Mark the puppy as adopted
+    puppy.is_adopted = True
+    db_session.commit()
+
+    # Log the adoption
+    new_adoption = AdoptionDb(
+        owner_name=adoption_data["owner_name"],
+        owner_email=adoption_data["owner_email"],
+        owner_phone=adoption_data["owner_phone"],
+        puppy_id=adoption_data["puppy_id"]
+    )
+    db_session.add(new_adoption)
+    db_session.commit()
+
+    return jsonify({"success": True, "message": "Adoption successful!"}), 201
+
+@puppy_db_router.route("/api/puppies", methods=["GET"])
+def get_available_puppies():
+    available_puppies = PuppyDb.query.filter_by(is_adopted=False).all()
+    puppies_data = PuppySchema(many=True).dump(available_puppies)
+    return {"success": True, "data": puppies_data}, 200
+
+
+
