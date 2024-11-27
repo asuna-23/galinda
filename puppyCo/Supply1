@@ -1,0 +1,175 @@
+// models
+
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+db = SQLAlchemy()
+
+class Supply(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(50), default="Available")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "category": self.category,
+            "quantity": self.quantity,
+            "status": self.status,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
+        }
+
+class Assignment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    supply_id = db.Column(db.Integer, db.ForeignKey('supply.id'), nullable=False)
+    employee_name = db.Column(db.String(100), nullable=False)
+    assigned_date = db.Column(db.DateTime, default=datetime.utcnow)
+    return_date = db.Column(db.DateTime, nullable=True)
+
+    supply = db.relationship('Supply', backref='assignments')
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "supply_id": self.supply_id,
+            "employee_name": self.employee_name,
+            "assigned_date": self.assigned_date,
+            "return_date": self.return_date,
+            "supply_name": self.supply.name
+        }
+
+// app.py
+
+from flask import Flask, request, jsonify
+from models import db, Supply, Assignment
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///supplies.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+
+@app.route('/supplies', methods=['GET', 'POST'])
+def handle_supplies():
+    if request.method == 'POST':
+        data = request.json
+        new_supply = Supply(
+            name=data['name'],
+            category=data['category'],
+            quantity=data['quantity'],
+            status=data.get('status', 'Available')
+        )
+        db.session.add(new_supply)
+        db.session.commit()
+        return jsonify(new_supply.to_dict()), 201
+    else:
+        supplies = Supply.query.all()
+        return jsonify([supply.to_dict() for supply in supplies]), 200
+
+@app.route('/supplies/<int:id>', methods=['PUT', 'DELETE'])
+def update_or_delete_supply(id):
+    supply = Supply.query.get_or_404(id)
+    if request.method == 'PUT':
+        data = request.json
+        supply.name = data['name']
+        supply.category = data['category']
+        supply.quantity = data['quantity']
+        supply.status = data['status']
+        db.session.commit()
+        return jsonify(supply.to_dict()), 200
+    elif request.method == 'DELETE':
+        db.session.delete(supply)
+        db.session.commit()
+        return '', 204
+
+@app.route('/assignments', methods=['POST'])
+def assign_supply():
+    data = request.json
+    assignment = Assignment(
+        supply_id=data['supply_id'],
+        employee_name=data['employee_name']
+    )
+    supply = Supply.query.get_or_404(data['supply_id'])
+    supply.status = 'In Use'
+    db.session.add(assignment)
+    db.session.commit()
+    return jsonify(assignment.to_dict()), 201
+
+@app.route('/assignments/<int:supply_id>', methods=['GET'])
+def view_assignments(supply_id):
+    assignments = Assignment.query.filter_by(supply_id=supply_id).all()
+    return jsonify([assignment.to_dict() for assignment in assignments]), 200
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
+
+
+// SupplyForm
+<template>
+  <b-form @submit.prevent="handleSubmit">
+    <b-form-group label="Name">
+      <b-form-input v-model="supply.name" required></b-form-input>
+    </b-form-group>
+    <b-form-group label="Category">
+      <b-form-input v-model="supply.category" required></b-form-input>
+    </b-form-group>
+    <b-form-group label="Quantity">
+      <b-form-input type="number" v-model="supply.quantity" required></b-form-input>
+    </b-form-group>
+    <b-form-group label="Status">
+      <b-form-select v-model="supply.status" :options="statuses"></b-form-select>
+    </b-form-group>
+    <b-button type="submit" variant="success">Save</b-button>
+  </b-form>
+</template>
+
+<script>
+export default {
+  props: ["editData"],
+  data() {
+    return {
+      supply: this.editData || { name: "", category: "", quantity: 0, status: "Available" },
+      statuses: ["Available", "In Use", "Damaged"]
+    };
+  },
+  methods: {
+    handleSubmit() {
+      this.$emit("saveSupply", this.supply);
+    }
+  }
+};
+</script>
+
+// supply list
+
+<template>
+  <div>
+    <b-button variant="primary" @click="$emit('addSupply')">Add Supply</b-button>
+    <b-table :items="supplies" :fields="fields" striped hover>
+      <template #cell(actions)="row">
+        <b-button size="sm" variant="warning" @click="$emit('editSupply', row.item)">Edit</b-button>
+        <b-button size="sm" variant="danger" @click="$emit('deleteSupply', row.item.id)">Delete</b-button>
+      </template>
+    </b-table>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ["supplies"],
+  data() {
+    return {
+      fields: ["name", "category", "quantity", "status", "actions"]
+    };
+  }
+};
+</script>
+
+// 
