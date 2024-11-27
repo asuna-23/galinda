@@ -1,0 +1,183 @@
+// supplyform
+
+<template>
+  <b-form @submit.prevent="handleSubmit">
+    <b-form-group label="Name">
+      <b-form-input v-model="supply.name" placeholder="Enter supply name" required></b-form-input>
+    </b-form-group>
+    <b-form-group label="Category">
+      <b-form-input v-model="supply.category" placeholder="Enter category (e.g., electronics)" required></b-form-input>
+    </b-form-group>
+    <b-form-group label="Quantity">
+      <b-form-input type="number" v-model="supply.quantity" placeholder="Enter quantity" required></b-form-input>
+    </b-form-group>
+    <b-button type="submit" variant="success">Save</b-button>
+  </b-form>
+</template>
+
+<script>
+export default {
+  props: ["editData"], // Optional prop for editing
+  data() {
+    return {
+      supply: this.editData || {
+        name: "",
+        category: "",
+        quantity: 0,
+      },
+    };
+  },
+  methods: {
+    handleSubmit() {
+      this.$emit("saveSupply", { ...this.supply }); // Emit the supply object
+      this.resetForm();
+    },
+    resetForm() {
+      if (!this.editData) {
+        this.supply = { name: "", category: "", quantity: 0 };
+      }
+    },
+  },
+};
+</script>
+
+// supplylist
+
+<template>
+  <div>
+    <b-button variant="primary" @click="$emit('addSupply')">Add Supply</b-button>
+    <b-table :items="supplies" :fields="fields" striped hover>
+      <template #cell(actions)="row">
+        <b-button size="sm" variant="warning" @click="$emit('editSupply', row.item)">Edit</b-button>
+        <b-button size="sm" variant="danger" @click="$emit('deleteSupply', row.item.id)">Delete</b-button>
+      </template>
+    </b-table>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ["supplies"],
+  data() {
+    return {
+      fields: ["name", "category", "quantity", "actions"], // Table fields
+    };
+  },
+};
+</script>
+
+
+// app
+
+<template>
+  <div>
+    <supply-form
+      v-if="showForm"
+      :edit-data="currentSupply"
+      @saveSupply="handleSaveSupply"
+    />
+    <supply-list
+      v-else
+      :supplies="supplies"
+      @addSupply="handleAddSupply"
+      @editSupply="handleEditSupply"
+      @deleteSupply="handleDeleteSupply"
+    />
+  </div>
+</template>
+
+<script>
+import SupplyForm from "./components/SupplyForm.vue";
+import SupplyList from "./components/SupplyList.vue";
+import axios from "axios";
+
+export default {
+  components: { SupplyForm, SupplyList },
+  data() {
+    return {
+      supplies: [], // Stores all supplies
+      showForm: false, // Toggles between form and list
+      currentSupply: null, // Data for editing (or null for new records)
+    };
+  },
+  created() {
+    this.fetchSupplies();
+  },
+  methods: {
+    async fetchSupplies() {
+      try {
+        const response = await axios.get("/supplies");
+        this.supplies = response.data;
+      } catch (error) {
+        console.error("Failed to fetch supplies:", error);
+      }
+    },
+    handleAddSupply() {
+      this.currentSupply = null; // Ensure we're adding a new supply
+      this.showForm = true;
+    },
+    handleEditSupply(supply) {
+      this.currentSupply = supply; // Set data for editing
+      this.showForm = true;
+    },
+    async handleSaveSupply(supply) {
+      if (supply.id) {
+        // Update existing record
+        await axios.put(`/supplies/${supply.id}`, supply);
+      } else {
+        // Create new record
+        const response = await axios.post("/supplies", supply);
+        this.supplies.push(response.data);
+      }
+      this.showForm = false;
+      this.fetchSupplies(); // Refresh list
+    },
+    async handleDeleteSupply(id) {
+      try {
+        await axios.delete(`/supplies/${id}`);
+        this.fetchSupplies(); // Refresh list
+      } catch (error) {
+        console.error("Failed to delete supply:", error);
+      }
+    },
+  },
+};
+</script>
+
+//////////
+
+Workflow
+
+1. Adding New Records:
+
+Click the "Add Supply" button.
+
+Fill in the form fields in SupplyForm.vue.
+
+Submit the form to trigger the handleSaveSupply method.
+
+The POST /supplies API is called to save the new supply.
+
+
+
+2. Editing Existing Records:
+
+Click the "Edit" button in the table for a supply.
+
+Load the data into SupplyForm.vue.
+
+Submit the form to update the supply via PUT /supplies/:id.
+
+
+
+3. Deleting Records:
+
+Click the "Delete" button in the table for a supply.
+
+Trigger the handleDeleteSupply method to remove the record.
+
+
+
+4. Viewing Supplies:
+
+Supplies are fetched and displayed in SupplyList.vue when the app loads (fetchSupplies()).
