@@ -1,0 +1,47 @@
+1. Create: Add Supplies
+
+Allow users to add new supplies with the following fields:
+
+Item Name
+
+Category (e.g., Electronics, Stationery)
+
+Quantity
+
+Status (e.g., Available, In Use, Damaged)
+
+Supplier Name
+
+Date Acquired
+
+
+
+
+2. Read: View Supplies List
+
+Display a list or table of all supplies with sortable and filterable columns:
+
+Item Name, Category, Quantity, Status, Supplier, Date Acquired
+
+
+Provide a search bar to quickly find specific supplies.
+
+Allow filtering by category or status.
+
+
+
+3. Update: Edit Supply Details
+
+Enable users to update existing supplies (e.g., quantity adjustments, status updates).
+
+Include validation to prevent errors (e.g., negative quantities).
+
+
+
+4. Delete: Remove Supplies
+
+Allow users to delete supplies no longer in use or expired.
+
+Provide a confirmation dialog to prevent accidental deletions.
+
+///// available,  in use, damaged 
