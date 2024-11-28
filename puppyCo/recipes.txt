@@ -1,0 +1,114 @@
+// recipe
+
+export const equipmentFormRecipe = [
+  {
+    componentName: 'CommonTextInput',
+    data: {
+      saveAs: 'equipmentName',
+    },
+    display: {
+      label: 'Equipment Name',
+      placeholder: 'Enter equipment name',
+    },
+    directives: {
+      required: true,
+    },
+  },
+  {
+    componentName: 'CommonRadioButton',
+    data: {
+      saveAs: 'status',
+    },
+    display: {
+      label: 'Status',
+      options: [
+        { text: 'Available', value: 'available' },
+        { text: 'In Use', value: 'in_use' },
+        { text: 'Damaged', value: 'damaged' },
+      ],
+    },
+    directives: {
+      required: true,
+    },
+  },
+  {
+    componentName: 'CommonTextInput',
+    data: {
+      saveAs: 'assignedTo',
+    },
+    display: {
+      label: 'Assigned To (Employee ID)',
+      placeholder: 'Enter employee ID',
+    },
+    directives: {
+      required: false,
+    },
+  },
+  {
+    componentName: 'CommonButton',
+    data: {},
+    display: {
+      label: 'Submit',
+    },
+    directives: {
+      variant: 'primary',
+      block: true,
+    },
+  },
+];
+
+
+// form
+
+<template>
+  <b-container>
+    <b-form @submit.prevent="handleSubmit">
+      <div v-for="(item, index) in formRecipe" :key="index">
+        <component
+          :is="item.componentName"
+          :item="item"
+          @addValue="updateFormData"
+          @click="handleButtonClick(item)"
+        />
+      </div>
+    </b-form>
+  </b-container>
+</template>
+
+<script>
+import { equipmentFormRecipe } from '@/common/recipes/formRecipes';
+import CommonTextInput from '@/common/components/CommonTextInput.vue';
+import CommonButton from '@/common/components/CommonButton.vue';
+import CommonRadioButton from '@/common/components/CommonRadioButton.vue';
+
+export default {
+  name: 'DynamicForm',
+  components: {
+    CommonTextInput,
+    CommonButton,
+    CommonRadioButton,
+  },
+  data() {
+    return {
+      formRecipe: equipmentFormRecipe,
+      formData: {},
+    };
+  },
+  methods: {
+    updateFormData({ key, value }) {
+      this.$set(this.formData, key, value);
+    },
+    handleButtonClick(item) {
+      if (item.type === 'CommonButton' && item.display.label === 'Submit') {
+        this.handleSubmit();
+      }
+    },
+    handleSubmit() {
+      console.log('Form Submitted:', this.formData);
+      // Add your API logic or form submission handler here.
+    },
+  },
+};
+</script>
+
+

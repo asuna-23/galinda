@@ -1,0 +1,723 @@
+// main
+<template>
+  <div class="container mt-5">
+    <h1>Office Supplies Tracker</h1>
+    <employee-form @refresh="fetchEmployees" />
+    <supply-form :employees="employees" @refresh="fetchSupplies" />
+    <supply-list :supplies="supplies" :employees="employees" @edit-supply="editSupply" @refresh="fetchSupplies" />
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+import EmployeeForm from './components/EmployeeForm.vue';
+import SupplyForm from './components/SupplyForm.vue';
+import SupplyList from './components/SupplyList.vue';
+
+export default {
+  components: { EmployeeForm, SupplyForm, SupplyList },
+  data() {
+    return {
+      employees: [],
+      supplies: [],
+      supplyToEdit: null,
+    };
+  },
+  methods: {
+    async fetchEmployees() {
+      const res = await axios.get('http://127.0.0.1:5000/employees');
+      this.employees = res.data;
+    },
+    async fetchSupplies() {
+      const res = await axios.get('http://127.0.0.1:5000/supplies');
+      this.supplies = res.data;
+    },
+    editSupply(supply) {
+      this.supplyToEdit = supply;
+    },
+  },
+  mounted() {
+    this.fetchEmployees();
+    this.fetchSupplies();
+  },
+};
+</script>
+
+// <template>
+  <b-form @submit.prevent="addOrUpdateSupply">
+    <div v-for="(field, index) in formFields" :key="index" class="mb-3">
+      <component
+        :is="field.component"
+        :item="field"
+        @addValue="updateFieldValue"
+      ></component>
+    </div>
+    <common-button
+      :item="submitButton"
+      @click.native="addOrUpdateSupply"
+    ></common-button>
+  </b-form>
+</template>
+
+<script>
+import axios from 'axios';
+import CommonButton from '@/common/components/CommonButton.vue';
+import CommonRadioButton from '@/common/components/CommonRadioButton.vue';
+import CommonTextInput from '@/common/components/CommonTextInput.vue';
+
+export default {
+  components: { CommonButton, CommonRadioButton, CommonTextInput },
+  props: {
+    employees: Array,
+    supplyToEdit: Object,
+  },
+  data() {
+    return {
+      isEdit: false,
+      formFields: [],
+      formData: {
+        id: null,
+        item_name: '',
+        status: 'Available',
+        assigned_to: '',
+      },
+    };
+  },
+  computed: {
+    submitButton() {
+      return {
+        display: { label: this.isEdit ? 'Update Supply' : 'Add Supply' },
+        directives: { variant: 'primary', type: 'submit' },
+      };
+    },
+  },
+  methods: {
+    initializeFormFields() {
+      this.formFields = [
+        {
+          component: 'CommonTextInput',
+          data: { saveAs: 'item_name' },
+          display: { label: 'Item Name' },
+          directives: { required: true, placeholder: 'Enter item name' },
+        },
+        {
+          component: 'CommonRadioButton',
+          data: { saveAs: 'status' },
+          display: {
+            label: 'Status',
+            options: [
+              { value: 'Available', text: 'Available' },
+              { value: 'In Use', text: 'In Use' },
+              { value: 'Damaged', text: 'Damaged' },
+            ],
+          },
+        },
+        {
+          component: 'CommonTextInput',
+          data: { saveAs: 'assigned_to' },
+          display: { label: 'Assigned To (Employee ID)' },
+          directives: { placeholder: 'Optional' },
+        },
+      ];
+    },
+    updateFieldValue({ key, value }) {
+      this.formData[key] = value;
+    },
+    async addOrUpdateSupply() {
+      if (this.isEdit) {
+        await axios.put(`http://127.0.0.1:5000/supplies/${this.formData.id}`, this.formData);
+      } else {
+        await axios.post('http://127.0.0.1:5000/supplies', this.formData);
+      }
+      this.resetForm();
+      this.$emit('refresh');
+    },
+    resetForm() {
+      this.formData = { id: null, item_name: '', status: 'Available', assigned_to: '' };
+      this.isEdit = false;
+    },
+  },
+  watch: {
+    supplyToEdit(newSupply) {
+      if (newSupply) {
+        this.formData = { ...newSupply };
+        this.isEdit = true;
+      }
+    },
+  },
+  mounted() {
+    this.initializeFormFields();
+  },
+};
+</script>
+
+// supplylist
+
+<template>
+  <div>
+    <h3>Supply List</h3>
+    <b-table :items="supplies" :fields="fields" striped hover>
+      <template #cell(actions)="row">
+        <common-button
+          :item="editButton(row.item)"
+          @click.native="editSupply(row.item)"
+        ></common-button>
+        <common-button
+          :item="deleteButton(row.item.id)"
+          @click.native="deleteSupply(row.item.id)"
+        ></common-button>
+      </template>
+    </b-table>
+  </div>
+</template>
+
+<script>
+import CommonButton from '@/common/components/CommonButton.vue';
+
+export default {
+  components: { CommonButton },
+  props: {
+    supplies: Array,
+    employees: Array,
+  },
+  data() {
+    return {
+      fields: [
+        { key: 'item_name', label: 'Item Name' },
+        { key: 'status', label: 'Status' },
+        { key: 'assigned_to', label: 'Assigned To' },
+        { key: 'last_updated_on', label: 'Last Updated On' },
+        { key: 'actions', label: 'Actions' },
+      ],
+    };
+  },
+  methods: {
+    editSupply(supply) {
+      this.$emit('edit-supply', supply);
+    },
+    async deleteSupply(id) {
+      await axios.delete(`http://127.0.0.1:5000/supplies/${id}`);
+      this.$emit('refresh');
+    },
+    editButton(item) {
+      return {
+        display: { label: 'Edit' },
+        directives: { variant: 'warning' },
+      };
+    },
+    deleteButton(id) {
+      return {
+        display: { label: 'Delete' },
+        directives: { variant: 'danger' },
+      };
+    },
+  },
+};
+</script>
+
+
+// updated supply list
+
+<template>
+  <div>
+    <h3>Supply List</h3>
+    <b-table :items="supplies" :fields="fields" striped hover>
+      <template #cell(actions)="row">
+        <common-button
+          :item="editButton(row.item)"
+          @click.native="editSupply(row.item)"
+        ></common-button>
+        <common-button
+          :item="deleteButton(row.item.id)"
+          @click.native="deleteSupply(row.item.id)"
+        ></common-button>
+      </template>
+    </b-table>
+    <b-modal
+      v-model="isEditModalVisible"
+      title="Edit Supply"
+      @ok="saveChanges"
+      @hidden="resetEditForm"
+    >
+      <b-form>
+        <b-form-group label="Item Name">
+          <b-form-input v-model="editForm.item_name" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group label="Category">
+          <b-form-input v-model="editForm.category" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group label="Quantity">
+          <b-form-input type="number" v-model="editForm.quantity" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group label="Assigned To">
+          <b-form-select
+            v-model="editForm.assigned_to"
+            :options="employeeOptions"
+            required
+          ></b-form-select>
+        </b-form-group>
+        <b-form-group label="Status">
+          <b-form-select
+            v-model="editForm.status"
+            :options="statusOptions"
+            required
+          ></b-form-select>
+        </b-form-group>
+      </b-form>
+    </b-modal>
+  </div>
+</template>
+
+<script>
+import CommonButton from '@/common/components/CommonButton.vue';
+import axios from 'axios';
+
+export default {
+  components: { CommonButton },
+  props: {
+    supplies: Array,
+    employees: Array,
+  },
+  data() {
+    return {
+      fields: [
+        { key: 'item_name', label: 'Item Name' },
+        { key: 'status', label: 'Status' },
+        { key: 'assigned_to', label: 'Assigned To' },
+        { key: 'last_updated_on', label: 'Last Updated On' },
+        { key: 'actions', label: 'Actions' },
+      ],
+      isEditModalVisible: false,
+      editForm: {
+        id: null,
+        item_name: '',
+        category: '',
+        quantity: 0,
+        status: '',
+        assigned_to: '',
+      },
+      statusOptions: [
+        { value: 'Available', text: 'Available' },
+        { value: 'In Use', text: 'In Use' },
+        { value: 'Damaged', text: 'Damaged' },
+      ],
+      employeeOptions: [], // Populated from props
+    };
+  },
+  methods: {
+    editSupply(supply) {
+      this.editForm = { ...supply };
+      this.isEditModalVisible = true;
+      this.employeeOptions = this.employees.map((employee) => ({
+        value: employee.name,
+        text: employee.name,
+      }));
+    },
+    async saveChanges() {
+      try {
+        await axios.put(`http://127.0.0.1:5000/supplies/${this.editForm.id}`, this.editForm);
+        this.$emit('refresh');
+        this.isEditModalVisible = false;
+      } catch (error) {
+        console.error('Error updating supply:', error);
+      }
+    },
+    resetEditForm() {
+      this.editForm = {
+        id: null,
+        item_name: '',
+        category: '',
+        quantity: 0,
+        status: '',
+        assigned_to: '',
+      };
+    },
+    async deleteSupply(id) {
+      await axios.delete(`http://127.0.0.1:5000/supplies/${id}`);
+      this.$emit('refresh');
+    },
+    editButton(item) {
+      return {
+        display: { label: 'Edit' },
+        directives: { variant: 'warning' },
+      };
+    },
+    deleteButton(id) {
+      return {
+        display: { label: 'Delete' },
+        directives: { variant: 'danger' },
+      };
+    },
+  },
+};
+</script>
+
+// w/ validation on assigned to field
+
+<template>
+  <div>
+    <h3>Supply List</h3>
+    <b-table :items="supplies" :fields="fields" striped hover>
+      <template #cell(actions)="row">
+        <common-button
+          :item="editButton(row.item)"
+          @click.native="editSupply(row.item)"
+        ></common-button>
+        <common-button
+          :item="deleteButton(row.item.id)"
+          @click.native="deleteSupply(row.item.id)"
+        ></common-button>
+      </template>
+    </b-table>
+    <b-modal
+      v-model="isEditModalVisible"
+      title="Edit Supply"
+      @ok="validateAndSubmit"
+      @hidden="resetEditForm"
+    >
+      <b-form>
+        <b-form-group label="Item Name">
+          <b-form-input v-model="editForm.item_name" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group label="Category">
+          <b-form-input v-model="editForm.category" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group label="Quantity">
+          <b-form-input type="number" v-model="editForm.quantity" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group label="Assigned To" :invalid-feedback="assignedToError">
+          <b-form-select
+            v-model="editForm.assigned_to"
+            :options="employeeOptions"
+            :state="assignedToValid"
+            required
+          ></b-form-select>
+        </b-form-group>
+        <b-form-group label="Status">
+          <b-form-select
+            v-model="editForm.status"
+            :options="statusOptions"
+            required
+          ></b-form-select>
+        </b-form-group>
+      </b-form>
+    </b-modal>
+  </div>
+</template>
+
+<script>
+import CommonButton from '@/common/components/CommonButton.vue';
+import axios from 'axios';
+
+export default {
+  components: { CommonButton },
+  props: {
+    supplies: Array,
+    employees: Array,
+  },
+  data() {
+    return {
+      fields: [
+        { key: 'item_name', label: 'Item Name' },
+        { key: 'status', label: 'Status' },
+        { key: 'assigned_to', label: 'Assigned To' },
+        { key: 'last_updated_on', label: 'Last Updated On' },
+        { key: 'actions', label: 'Actions' },
+      ],
+      isEditModalVisible: false,
+      editForm: {
+        id: null,
+        item_name: '',
+        category: '',
+        quantity: 0,
+        status: '',
+        assigned_to: '',
+      },
+      assignedToError: '',
+      assignedToValid: null,
+      statusOptions: [
+        { value: 'Available', text: 'Available' },
+        { value: 'In Use', text: 'In Use' },
+        { value: 'Damaged', text: 'Damaged' },
+      ],
+      employeeOptions: [], // Populated from props
+    };
+  },
+  methods: {
+    editSupply(supply) {
+      this.editForm = { ...supply };
+      this.isEditModalVisible = true;
+      this.employeeOptions = this.employees.map((employee) => ({
+        value: employee.id, // Use employee ID here
+        text: employee.name,
+      }));
+    },
+    validateAssignedTo() {
+      const isValid = this.employees.some(
+        (employee) => employee.id === this.editForm.assigned_to
+      );
+      if (!isValid) {
+        this.assignedToError = 'Invalid employee ID.';
+        this.assignedToValid = false;
+        return false;
+      }
+      this.assignedToError = '';
+      this.assignedToValid = true;
+      return true;
+    },
+    async validateAndSubmit() {
+      if (this.validateAssignedTo()) {
+        await this.saveChanges();
+        this.isEditModalVisible = false;
+      }
+    },
+    async saveChanges() {
+      try {
+        await axios.put(
+          `http://127.0.0.1:5000/supplies/${this.editForm.id}`,
+          this.editForm
+        );
+        this.$emit('refresh');
+      } catch (error) {
+        console.error('Error updating supply:', error);
+      }
+    },
+    resetEditForm() {
+      this.editForm = {
+        id: null,
+        item_name: '',
+        category: '',
+        quantity: 0,
+        status: '',
+        assigned_to: '',
+      };
+      this.assignedToError = '';
+      this.assignedToValid = null;
+    },
+    async deleteSupply(id) {
+      await axios.delete(`http://127.0.0.1:5000/supplies/${id}`);
+      this.$emit('refresh');
+    },
+    editButton(item) {
+      return {
+        display: { label: 'Edit' },
+        directives: { variant: 'warning' },
+      };
+    },
+    deleteButton(id) {
+      return {
+        display: { label: 'Delete' },
+        directives: { variant: 'danger' },
+      };
+    },
+  },
+};
+</script>
+
+
+// w/ validations2 supply list
+
+<template>
+  <div>
+    <h3>Supply List</h3>
+    <b-table :items="supplies" :fields="fields" striped hover>
+      <template #cell(actions)="row">
+        <common-button
+          :item="editButton(row.item)"
+          @click.native="editSupply(row.item)"
+        ></common-button>
+        <common-button
+          :item="deleteButton(row.item.id)"
+          @click.native="deleteSupply(row.item.id)"
+        ></common-button>
+      </template>
+    </b-table>
+    <b-modal
+      v-model="isEditModalVisible"
+      title="Edit Supply"
+      @ok="validateAndSubmit"
+      @hidden="resetEditForm"
+    >
+      <b-form>
+        <b-form-group
+          label="Item Name"
+          :state="fieldState('item_name')"
+          :invalid-feedback="validationErrors.item_name"
+        >
+          <b-form-input v-model="editForm.item_name" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group
+          label="Category"
+          :state="fieldState('category')"
+          :invalid-feedback="validationErrors.category"
+        >
+          <b-form-input v-model="editForm.category" readonly></b-form-input>
+        </b-form-group>
+        <b-form-group
+          label="Assigned To (Optional)"
+          :state="fieldState('assigned_to')"
+          :invalid-feedback="validationErrors.assigned_to"
+        >
+          <b-form-select
+            v-model="editForm.assigned_to"
+            :options="employeeOptions"
+            placeholder="Select Employee"
+          ></b-form-select>
+        </b-form-group>
+        <b-form-group
+          label="Status"
+          :state="fieldState('status')"
+          :invalid-feedback="validationErrors.status"
+        >
+          <b-form-select
+            v-model="editForm.status"
+            :options="statusOptions"
+            required
+          ></b-form-select>
+        </b-form-group>
+      </b-form>
+    </b-modal>
+  </div>
+</template>
+
+<script>
+import CommonButton from '@/common/components/CommonButton.vue';
+import axios from 'axios';
+
+export default {
+  components: { CommonButton },
+  props: {
+    supplies: Array,
+    employees: Array,
+  },
+  data() {
+    return {
+      fields: [
+        { key: 'item_name', label: 'Item Name' },
+        { key: 'status', label: 'Status' },
+        { key: 'assigned_to', label: 'Assigned To' },
+        { key: 'last_updated_on', label: 'Last Updated On' },
+        { key: 'actions', label: 'Actions' },
+      ],
+      isEditModalVisible: false,
+      editForm: {
+        id: null,
+        item_name: '',
+        category: '',
+        status: '',
+        assigned_to: '',
+      },
+      validationErrors: {
+        item_name: '',
+        category: '',
+        status: '',
+        assigned_to: '',
+      },
+      statusOptions: [
+        { value: 'Available', text: 'Available' },
+        { value: 'In Use', text: 'In Use' },
+        { value: 'Damaged', text: 'Damaged' },
+      ],
+      employeeOptions: [], // Populated dynamically
+    };
+  },
+  methods: {
+    editSupply(supply) {
+      this.editForm = { ...supply };
+      this.isEditModalVisible = true;
+      this.employeeOptions = this.employees.map((employee) => ({
+        value: employee.id,
+        text: employee.name,
+      }));
+    },
+    validateForm() {
+      let isValid = true;
+
+      // Reset errors
+      Object.keys(this.validationErrors).forEach((key) => {
+        this.validationErrors[key] = '';
+      });
+
+      // Validate item_name
+      if (!this.editForm.item_name) {
+        this.validationErrors.item_name = 'Item name is required.';
+        isValid = false;
+      }
+
+      // Validate category
+      if (!this.editForm.category) {
+        this.validationErrors.category = 'Category is required.';
+        isValid = false;
+      }
+
+      // Validate assigned_to (only if provided)
+      if (this.editForm.assigned_to && 
+          !this.employees.some(employee => employee.id === this.editForm.assigned_to)) {
+        this.validationErrors.assigned_to = 'Invalid employee ID.';
+        isValid = false;
+      }
+
+      // Validate status
+      if (!this.editForm.status) {
+        this.validationErrors.status = 'Status is required.';
+        isValid = false;
+      }
+
+      return isValid;
+    },
+    fieldState(field) {
+      return this.validationErrors[field] ? false : null;
+    },
+    async validateAndSubmit() {
+      if (this.validateForm()) {
+        await this.saveChanges();
+        this.isEditModalVisible = false;
+      }
+    },
+    async saveChanges() {
+      try {
+        await axios.put(
+          `http://127.0.0.1:5000/supplies/${this.editForm.id}`,
+          this.editForm
+        );
+        this.$emit('refresh');
+      } catch (error) {
+        console.error('Error updating supply:', error);
+      }
+    },
+    resetEditForm() {
+      this.editForm = {
+        id: null,
+        item_name: '',
+        category: '',
+        status: '',
+        assigned_to: '',
+      };
+      this.validationErrors = {
+        item_name: '',
+        category: '',
+        status: '',
+        assigned_to: '',
+      };
+    },
+    async deleteSupply(id) {
+      await axios.delete(`http://127.0.0.1:5000/supplies/${id}`);
+      this.$emit('refresh');
+    },
+    editButton(item) {
+      return {
+        display: { label: 'Edit' },
+        directives: { variant: 'warning' },
+      };
+    },
+    deleteButton(id) {
+      return {
+        display: { label: 'Delete' },
+        directives: { variant: 'danger' },
+      };
+    },
+  },
+};
+</script>
+
+
